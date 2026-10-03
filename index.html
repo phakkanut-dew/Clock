@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bangkok Tokyo Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500&family=Zen+Kaku+Gothic+New:wght@500;700&display=swap">
+<style>
+  /* Layout: two dials side by side, each with city label above and digital readout below; stacks on phones. */
+  :root {
+    --bg: #f3f5f8;
+    --surface: #ffffff;
+    --fg: #14202e;
+    --muted: #5c6b7c;
+    --line: #d5dce5;
+    --th: #1f4aa8;       /* Bangkok accent */
+    --jp: #c8312b;       /* Tokyo accent */
+    --font-body: "IBM Plex Sans Thai", "Noto Sans Thai", system-ui, sans-serif;
+    --font-jp: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1722; --surface: #16212f; --fg: #e8eef6; --muted: #93a2b5; --line: #2b3a4d;
+      --th: #7aa2ff; --jp: #ff7a70; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1722; --surface: #16212f; --fg: #e8eef6; --muted: #93a2b5; --line: #2b3a4d;
+    --th: #7aa2ff; --jp: #ff7a70; color-scheme: dark;
+  }
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+    padding-inline: 16px; padding-block: 24px;
+  }
+  main { max-width: 860px; margin-inline: auto; display: flex; flex-direction: column; gap: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px 16px 18px; display: flex; flex-direction: column; align-items: center; gap: 14px; min-width: 0;
+  }
+  .card[data-city="bkk"] { --accent: var(--th); }
+  .card[data-city="tyo"] { --accent: var(--jp); }
+  .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .head h2 { margin: 0; font-size: 1.25rem; font-weight: 600; text-wrap: balance; }
+  .head h2.jp { font-family: var(--font-jp); font-weight: 700; }
+  .head .native { font-size: 1rem; color: var(--muted); }
+  .tz { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.06em; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 1px 8px; }
+  svg.dial { width: min(100%, 280px); height: auto; display: block; }
+  .dial .face { fill: var(--bg); stroke: var(--line); stroke-width: 2; }
+  .dial .tick { stroke: var(--muted); stroke-linecap: round; }
+  .dial .num { fill: var(--muted); font-family: var(--font-mono); font-size: 13px; text-anchor: middle; dominant-baseline: central; }
+  .dial .hand-h, .dial .hand-m { stroke: var(--fg); stroke-linecap: round; }
+  .dial .hand-s { stroke: var(--accent); stroke-linecap: round; }
+  .dial .hub { fill: var(--accent); }
+  .digital { font-family: var(--font-mono); font-size: 1.75rem; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+  .date { color: var(--muted); font-size: 0.9rem; text-align: center; }
+  .diff { text-align: center; color: var(--muted); font-size: 0.9rem; }
+  .diff strong { color: var(--fg); font-weight: 600; }
+</style>
+<style>html,body{margin:0}</style>
+</head>
+<body>
+
+
+<main>
+  <div class="grid">
+    <section class="card" data-city="bkk" aria-label="เวลากรุงเทพฯ">
+      <div class="head"><h2>กรุงเทพฯ</h2><span class="tz">UTC+7</span></div>
+      <svg class="dial" viewBox="0 0 200 200" role="img" aria-label="นาฬิกาอนาล็อกเวลาไทย"></svg>
+      <div class="digital" data-role="digital">--:--:--</div>
+      <div class="date" data-role="date"></div>
+    </section>
+    <section class="card" data-city="tyo" aria-label="เวลาโตเกียว">
+      <div class="head"><h2 class="jp">東京</h2><span class="native">(โตเกียว)</span><span class="tz">UTC+9</span></div>
+      <svg class="dial" viewBox="0 0 200 200" role="img" aria-label="นาฬิกาอนาล็อกเวลาญี่ปุ่น"></svg>
+      <div class="digital" data-role="digital">--:--:--</div>
+      <div class="date" data-role="date"></div>
+    </section>
+  </div>
+  <p class="diff">ญี่ปุ่นเวลาเร็วกว่าไทย <strong>2 ชั่วโมง</strong></p>
+</main>
+
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  var zones = {
+    bkk: { tz: "Asia/Bangkok", locale: "th-TH" },
+    tyo: { tz: "Asia/Tokyo", locale: "ja-JP", thaiGloss: true }
+  };
+
+  function el(name, attrs, parent) {
+    var n = document.createElementNS(NS, name);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+
+  function buildDial(svg) {
+    el("circle", { "class": "face", cx: 100, cy: 100, r: 96 }, svg);
+    for (var i = 0; i < 60; i++) {
+      var major = i % 5 === 0;
+      var a = i * 6 * Math.PI / 180;
+      var r1 = major ? 80 : 87, r2 = 91;
+      el("line", {
+        "class": "tick", "stroke-width": major ? 2.4 : 1,
+        x1: 100 + r1 * Math.sin(a), y1: 100 - r1 * Math.cos(a),
+        x2: 100 + r2 * Math.sin(a), y2: 100 - r2 * Math.cos(a)
+      }, svg);
+    }
+    for (var h = 1; h <= 12; h++) {
+      var b = h * 30 * Math.PI / 180;
+      var t = el("text", { "class": "num", x: 100 + 67 * Math.sin(b), y: 100 - 67 * Math.cos(b) }, svg);
+      t.textContent = h;
+    }
+    var hands = {};
+    hands.h = el("line", { "class": "hand-h", "stroke-width": 5, x1: 100, y1: 108, x2: 100, y2: 58 }, svg);
+    hands.m = el("line", { "class": "hand-m", "stroke-width": 3.2, x1: 100, y1: 112, x2: 100, y2: 34 }, svg);
+    hands.s = el("line", { "class": "hand-s", "stroke-width": 1.6, x1: 100, y1: 118, x2: 100, y2: 24 }, svg);
+    el("circle", { "class": "hub", cx: 100, cy: 100, r: 4.5 }, svg);
+    return hands;
+  }
+
+  var clocks = [];
+  document.querySelectorAll(".card").forEach(function (card) {
+    var key = card.getAttribute("data-city");
+    var z = zones[key];
+    clocks.push({
+      z: z,
+      hands: buildDial(card.querySelector("svg.dial")),
+      digital: card.querySelector('[data-role="digital"]'),
+      date: card.querySelector('[data-role="date"]'),
+      tf: new Intl.DateTimeFormat("en-GB", { timeZone: z.tz, hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+      df: new Intl.DateTimeFormat(z.locale, { timeZone: z.tz, weekday: "long", day: "numeric", month: "long" }),
+      dfTh: z.thaiGloss ? new Intl.DateTimeFormat("th-TH", { timeZone: z.tz, weekday: "long", day: "numeric", month: "long" }) : null,
+      lastDate: ""
+    });
+  });
+
+  function rot(line, deg) { line.setAttribute("transform", "rotate(" + deg + " 100 100)"); }
+
+  function tick() {
+    var now = new Date();
+    var ms = now.getMilliseconds();
+    clocks.forEach(function (c) {
+      var p = {};
+      c.tf.formatToParts(now).forEach(function (x) { p[x.type] = x.value; });
+      var h = parseInt(p.hour, 10) % 24, m = parseInt(p.minute, 10), s = parseInt(p.second, 10);
+      var sec = s + ms / 1000;
+      var min = m + sec / 60;
+      var hr = (h % 12) + min / 60;
+      rot(c.hands.s, sec * 6);
+      rot(c.hands.m, min * 6);
+      rot(c.hands.h, hr * 30);
+      c.digital.textContent = p.hour + ":" + p.minute + ":" + p.second;
+      var d = c.df.format(now);
+      if (c.dfTh) d += " (" + c.dfTh.format(now) + ")";
+      if (d !== c.lastDate) { c.date.textContent = d; c.lastDate = d; }
+    });
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+</script>
+
+</body>
+</html>
